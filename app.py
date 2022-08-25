@@ -13,7 +13,7 @@ import streamlit as st
 def create_effnetv2_s():
   
     weights = torchvision.models.EfficientNet_V2_S_Weights.DEFAULT
-    model = torchvision.models.efficientnet_v2_s(weights=weights)
+    model = torchvision.models.efficientnet_v2_s(weights=weights).to(device)
     p = 0.2
     in_features = 1280
     out_features = len(label_names)
@@ -36,6 +36,7 @@ def prediction(model: torchvision.models, image: Image, label_names: List[str]) 
                                     transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                                          std =[0.229, 0.224, 0.225])])
     transformed_image = transform(image)
+    transformed_image = transformed_image.unsqueeze(0).to(device)
     logits = model(transformed_image)
     probs = torch.softmax(logits, dim=1)
     label = torch.argmax(probs, dim=1)
@@ -55,16 +56,21 @@ with open("labels.txt", "r") as f:
 
 if __name__=='__main__':
 
-    st.title("Welcom to Food Vision!")
+    # Model weights trained on CUDA but CPU is default here.
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    st.title("Welcom to Food Vision :heart:")
     instructions = """
                     Upload your own food image to see what Neural Network predicts.
+                    
                     The output will be displayed to the below.
+
                     """
     st.write(instructions)
 
     model_path = "models/Food101_EffNetV2-S_5-epochs.pth"
     model = create_effnetv2_s()
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
     uploaded = st.file_uploader("Upload Food Image")
     if uploaded:
@@ -76,8 +82,10 @@ if __name__=='__main__':
         st.image(resized_image)
         descriptions = f"""
                         Neural Network predicts your image as {label_name} with a probability of {prob}.
+
+                        Try again if you'd like to:blush:
+
                         """
         st.write(descriptions)
-        st.title("Try again if you'd like to.")
 
 
