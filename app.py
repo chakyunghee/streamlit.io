@@ -60,18 +60,14 @@ with open("test.json", "r") as f:
 
 
 # Load PIL images from s3 to make dictionary with keys
-@st.cache
-def load_files_from_s3(keys: List[str],
-                       bucket_name: str = "food101-classification-bucket") -> Dict[str, Image.Image]:
+def load_image_from_s3(key: str,
+                       bucket_name: str = "food101-classification-bucket") -> Image.Image:
     s3 = boto3.client('s3')
-    s3_files_dict = {}
-    for key in keys:
-        s3_file_raw = s3.get_object(Bucket=bucket_name, Key=key)
-        s3_file_cleaned = s3_file_raw['Body'].read()
-        image_from_s3 = Image.open(BytesIO(s3_file_cleaned))
-        s3_files_dict[key] = image_from_s3
+    s3_file_raw = s3.get_object(Bucket=bucket_name, Key=key)
+    s3_file_cleaned = s3_file_raw['Body'].read()
+    image = Image.open(BytesIO(s3_file_cleaned))
     
-    return s3_files_dict
+    return image
 
 
 if __name__=='__main__':
@@ -102,12 +98,9 @@ if __name__=='__main__':
         food_type = st.sidebar.selectbox("Food Type", label_names)
         food_name = st.sidebar.selectbox("Food Image Name", images_dict[food_type])
 
-        keys = ["images/" + key + ".jpg" for key in images_dict[food_type]]
-        selected = "images/" + food_name + ".jpg"
-        s3_files_dict = load_files_from_s3(keys=keys)
-
-        image = s3_files_dict[selected]
-
+        key = "images/" + food_name + ".jpg"
+        image = load_image_from_s3(key=key)
+    
         label_name, prob = prediction(model=model, image=image, label_names=label_names)
         caption = f"Selected food type is '{food_type}'"
         instruction = ''
