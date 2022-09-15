@@ -53,7 +53,7 @@ def prediction(model: torchvision.models, image: Image, label_names: List[str]) 
 
 
 # Get all unseen images of each label and convert labels into Python List.
-with open("data/food-101/meta/test.json", "r") as f:
+with open("test.json", "r") as f:
     test_json_dict = json.load(f)
     images_dict = {key : test_json_dict[key] for key in test_json_dict.keys()}
     label_names = sorted(images_dict.keys())
