@@ -4,9 +4,14 @@ from torch import nn
 from torchvision import transforms
 
 from PIL import Image
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import streamlit as st
+import os
+import json
+import random
+import boto3
+from io import BytesIO
 
 
 # Create an instance of efficientnetv2_s with pretrained weights, feeze the base model layers, and change the classifier head.
@@ -47,11 +52,25 @@ def prediction(model: torchvision.models, image: Image, label_names: List[str]) 
     return label_name, prob
 
 
-# Convert labels in a text file into Python List.
-with open("labels.txt", "r") as f:
-    labels = f.read()
-    label_names = labels.split("\n")
-    label_names.remove('')
+# Randomly sample three images in each label and convert labels into Python List.
+with open("test.json", "r") as f:
+    test_json_dict = json.load(f)
+    rand_dict = {key : random.sample(test_json_dict[key], k=5) for key in test_json_dict.keys()}
+    label_names = sorted(rand_dict.keys())
+
+
+# Load PIL images from s3 to make dictionary with keys
+def load_files_from_s3(keys: List[str],
+                       bucket_name: str = "food101-classification-bucket") -> Dict[str, Image.Image]:
+    s3 = boto3.client('s3')
+    s3_files_dict = {}
+    for key in keys:
+        s3_file_raw = s3.get_object(Bucket=bucket_name, Key=key)
+        s3_file_cleaned = s3_file_raw['Body'].read()
+        image_from_s3 = Image.open(BytesIO(s3_file_cleaned))
+        s3_files_dict[key] = image_from_s3
+    
+    return s3_files_dict
 
 
 if __name__=='__main__':
@@ -61,10 +80,11 @@ if __name__=='__main__':
 
     st.title("Welcom to Food Vision :heart:")
     instructions = """
-                    Upload your own food image to see what Neural Network predicts.
-                    
+                    **Upload** your own food image or **select** one at sidebar.\n
+                    Images both model has not seen and model has used on training are included in selection,
+                    and will be randomly reloaded whenever you click the selectbox.\n                    
+                    See what Neural Network predicts.                   
                     The output will be displayed to the below.
-
                     """
     st.write(instructions)
 
@@ -76,16 +96,29 @@ if __name__=='__main__':
     if uploaded:
         image = Image.open(uploaded)
         label_name, prob = prediction(model=model, image=image, label_names=label_names)
+        caption = "Here is the image you've uploaded."
+        instruction = "Click **X** the above if you want to select image."
+    else:
+        food_type = st.sidebar.selectbox("Food Type", label_names)  # label_names is list
+        food_name = st.sidebar.selectbox("Food Image Name", rand_dict[food_type])   # rand_dict[food_type] is list
 
-        st.title("Here is the image you've uploaded.")
-        resized_image = image.resize((224,224))
-        st.image(resized_image)
-        descriptions = f"""
-                        Neural Network predicts your image as {label_name} with a probability of {prob}.
+        keys = ["images/" + key + ".jpg" for key in rand_dict[food_type]]
+        selected = "images/" + food_name + ".jpg"
+        s3_files_dict = load_files_from_s3(keys=keys)
 
-                        Try again if you'd like to:blush:
+        image = s3_files_dict[selected]
 
-                        """
-        st.write(descriptions)
+        label_name, prob = prediction(model=model, image=image, label_names=label_names)
+        caption = f"Selected food type is '{food_type}'"
+        instruction = ''
 
+    resized_image = image.resize((384,384))
+    st.image(resized_image, caption=caption)
+    
+    descriptions = f"""
+                    Neural Network predicts your image as **{label_name}** with a probability of **{prob}**.
 
+                    :eyes:
+
+                    """
+    st.write(descriptions, instruction)
