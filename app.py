@@ -52,14 +52,15 @@ def prediction(model: torchvision.models, image: Image, label_names: List[str]) 
     return label_name, prob
 
 
-# Randomly sample three images in each label and convert labels into Python List.
-with open("test.json", "r") as f:
+# Get all unseen images of each label and convert labels into Python List.
+with open("data/food-101/meta/test.json", "r") as f:
     test_json_dict = json.load(f)
-    rand_dict = {key : random.sample(test_json_dict[key], k=5) for key in test_json_dict.keys()}
-    label_names = sorted(rand_dict.keys())
+    images_dict = {key : test_json_dict[key] for key in test_json_dict.keys()}
+    label_names = sorted(images_dict.keys())
 
 
 # Load PIL images from s3 to make dictionary with keys
+@st.cache
 def load_files_from_s3(keys: List[str],
                        bucket_name: str = "food101-classification-bucket") -> Dict[str, Image.Image]:
     s3 = boto3.client('s3')
@@ -81,8 +82,7 @@ if __name__=='__main__':
     st.title("Welcom to Food Vision :heart:")
     instructions = """
                     **Upload** your own food image or **select** one at sidebar.\n
-                    Images both model has not seen and model has used on training are included in selection,
-                    and will be randomly reloaded whenever you click the selectbox.\n                    
+                    Images the model has not seen are included in selection.\n                    
                     See what Neural Network predicts.                   
                     The output will be displayed to the below.
                     """
@@ -99,10 +99,10 @@ if __name__=='__main__':
         caption = "Here is the image you've uploaded."
         instruction = "Click **X** the above if you want to select image."
     else:
-        food_type = st.sidebar.selectbox("Food Type", label_names)  # label_names is list
-        food_name = st.sidebar.selectbox("Food Image Name", rand_dict[food_type])   # rand_dict[food_type] is list
+        food_type = st.sidebar.selectbox("Food Type", label_names)
+        food_name = st.sidebar.selectbox("Food Image Name", images_dict[food_type])
 
-        keys = ["images/" + key + ".jpg" for key in rand_dict[food_type]]
+        keys = ["images/" + key + ".jpg" for key in images_dict[food_type]]
         selected = "images/" + food_name + ".jpg"
         s3_files_dict = load_files_from_s3(keys=keys)
 
