@@ -2,3 +2,4 @@ torch >= 1.12
 torchvision >= 0.13
 streamlit
 boto3
+git-lfs
