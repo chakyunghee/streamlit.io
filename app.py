@@ -1,45 +1,36 @@
 import torch
 import torchvision
 from torch import nn
-from torchvision import transforms
 
+from typing import List, Tuple
 from PIL import Image
-from typing import List, Tuple, Dict
+from io import BytesIO
 
 import streamlit as st
-import os
 import json
-import random
 import boto3
-from io import BytesIO
 
 
 # Create an instance of efficientnetv2_s with pretrained weights, feeze the base model layers, and change the classifier head.
-def create_effnetv2_s():
+def create_vit_b_16_swag():
   
-    weights = torchvision.models.EfficientNet_V2_S_Weights.DEFAULT
-    model = torchvision.models.efficientnet_v2_s(weights=weights).to(device)
-    p = 0.2
-    in_features = 1280
-    out_features = len(label_names)
+    weights = torchvision.models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1
+    model = torchvision.models.vit_b_16(weights=weights).to(device)
 
-    for param in model.features.parameters():
+    for param in model.parameters():
         param.requires_grad = False
       
-    model.classifier = nn.Sequential(nn.Dropout(p=p, inplace=True),
-                                     nn.Linear(in_features=in_features,
-                                               out_features=out_features))   
+    model.heads = nn.Sequential(nn.Linear(in_features=768,
+                                          out_features=len(label_names)))
     return model
 
 
 # Make predicts
 def prediction(model: torchvision.models, image: Image, label_names: List[str]) -> Tuple[str, float]:
 
-    transform = transforms.Compose([transforms.Resize((224,224)),
-                                    transforms.TrivialAugmentWide(),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                         std =[0.229, 0.224, 0.225])])
+    weights = torchvision.models.ViT_B_16_Weights.IMAGENET1K_SWAG_E2E_V1
+    transform = weights.transforms()
+
     transformed_image = transform(image)
     transformed_image = transformed_image.unsqueeze(0).to(device)
     logits = model(transformed_image)
@@ -62,6 +53,7 @@ with open("test.json", "r") as f:
 # Load PIL images from s3 to make dictionary with keys
 def load_image_from_s3(key: str,
                        bucket_name: str = "food101-classification-bucket") -> Image.Image:
+                       
     s3 = boto3.client('s3')
     s3_file_raw = s3.get_object(Bucket=bucket_name, Key=key)
     s3_file_cleaned = s3_file_raw['Body'].read()
@@ -84,8 +76,8 @@ if __name__=='__main__':
                     """
     st.write(instructions)
 
-    model_path = "models/Food101_EffNetV2-S_5-epochs.pth"
-    model = create_effnetv2_s()
+    model_path = "models/Food101_ViT-B-16-SWAG_10-epochs.pth"
+    model = create_vit_b_16_swag()
     model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
     uploaded = st.file_uploader("Upload Food Image")

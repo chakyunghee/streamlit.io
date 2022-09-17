@@ -7,3 +7,4 @@ app_updated_local.py
 test.ipynb
 
 data/
+models/Food101_ViT-B-16-SWAG_10-epochs.pth
